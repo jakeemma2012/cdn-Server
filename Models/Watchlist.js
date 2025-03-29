@@ -1,9 +1,7 @@
-const { DataTypes, Model } = require('sequelize');
-const sequelize = require('../config/database');
+const { DataTypes } = require('sequelize');
+const { sequelize } = require('../Database/database');
 
-class Watchlist extends Model {}
-
-Watchlist.init({
+const Watchlist = sequelize.define('Watchlist', {   
     id: {
         type: DataTypes.INTEGER,
         primaryKey: true,
@@ -17,11 +15,8 @@ Watchlist.init({
         type: DataTypes.INTEGER,
         allowNull: false
     }
-}, {
-    sequelize,
-    modelName: 'Watchlist',
-    tableName: 'watchlist'
-})
+},
+);
 
 module.exports = Watchlist;
 

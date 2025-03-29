@@ -1,9 +1,7 @@
-const { DataTypes, Model } = require('sequelize');
-const sequelize = require('../config/database');
+const { DataTypes } = require('sequelize');
+const { sequelize } = require('../Database/database');
 
-class Seasions extends Model {}
-
-Seasions.init({
+const Seasion = sequelize.define('Seasion', {
     id: {
         type: DataTypes.INTEGER,
         primaryKey: true,
@@ -25,11 +23,8 @@ Seasions.init({
         type: DataTypes.DATE,
         allowNull: false
     }
-}, {
-    sequelize,
-    modelName: 'Seasions',
-    tableName: 'seasions'
-})
+},
+);
 
-module.exports = Seasions;
+module.exports = Seasion;
 

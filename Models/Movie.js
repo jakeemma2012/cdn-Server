@@ -1,68 +1,53 @@
-const { Model, DataTypes } = require('sequelize');
-const sequelize = require('../config/database'); 
+const { DataTypes } = require('sequelize');
+const { sequelize } = require('../Database/database');
 
-class Movie extends Model {}
-
-Movie.init({
-    movieId: {
+const Movie = sequelize.define('Movie', {
+    id: {
         type: DataTypes.INTEGER,
-        autoIncrement: true,
         primaryKey: true,
+        autoIncrement: true
     },
     title: {
-        type: DataTypes.STRING(200),
-        allowNull: false,
+        type: DataTypes.STRING,
+        allowNull: false
     },
     rating: {
-        type: DataTypes.DOUBLE,
-        allowNull: false,
-        validate: {
-            min: 0,
-            max: 10,
-        },
-    },
-    overviewString: {
-        type: DataTypes.TEXT,
+        type: DataTypes.FLOAT,
+        allowNull: false
     },
     genres: {
         type: DataTypes.STRING,
-        allowNull: false,
+        allowNull: false
     },
     status: {
-        type: DataTypes.STRING, 
-        allowNull: false,
+        type: DataTypes.STRING,
+        allowNull: false
     },
     studio: {
         type: DataTypes.STRING,
-        allowNull: false,
+        allowNull: false
     },
     director: {
         type: DataTypes.STRING,
-        allowNull: false,
+        allowNull: false
     },
     poster: {
         type: DataTypes.STRING,
-        allowNull: false,
-    },
-    movieCast: {
-        type: DataTypes.JSON, 
+        allowNull: false
     },
     posterUrl: {
         type: DataTypes.STRING,
-        allowNull: false,
+        allowNull: false
     },
-    releaseYear: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        validate: {
-            min: 1900,
-            max: 2100,
-        },
+    movieCast: {
+        type: DataTypes.STRING,
+        allowNull: false
     },
-}, {
-    sequelize,
-    modelName: 'Movie',
-    tableName: 'movie',
-});
+    releaseDate: {
+        type: DataTypes.DATE,
+        allowNull: false
+    },
+}
+);
 
 module.exports = Movie;

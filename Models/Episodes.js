@@ -1,9 +1,7 @@
-const { DataTypes, Model } = require('sequelize');
-const sequelize = require('../config/database');
+const { DataTypes } = require('sequelize');
+const { sequelize } = require('../Database/database');
 
-class Episode extends Model {}
-
-Episode.init({
+const Episode = sequelize.define('Episode', {
     id: {
         type: DataTypes.INTEGER,
         primaryKey: true,
@@ -37,11 +35,8 @@ Episode.init({
         type: DataTypes.STRING,
         allowNull: false
     }
-}, {
-    sequelize,
-    modelName: 'Episode',
-    tableName: 'episodes'
-})
-    
+},
+);
+
 module.exports = Episode;
 

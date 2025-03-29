@@ -4,7 +4,7 @@ const { db } = require('../Database/database');
 const jwt = require('jsonwebtoken');
 const jwtSecretKey = process.env.JWT_SECRET_KEY;
 const tokenHeaderKey = process.env.TOKEN_HEADER_KEY;
-
+const Movie = require('../Models/Movie');
 
 router.get('/get-movies', (req, res) => {
     const authHeader = req.headers['authorization'];
@@ -18,20 +18,22 @@ router.get('/get-movies', (req, res) => {
                 error: err.message
             });
         }
-        
-        db.query('select * from movie', (err, result) => {
-            if (err) {
-                return res.status(500).json({
+        Movie.findAll()
+            .then(movies => {
+                res.json({
+                    success: true,
+                    data: movies
+                });
+            })
+            .catch(err => {
+                res.status(500).json({
                     success: false,
                     message: 'Database query failed',
                     error: err.message
                 });
-            }
-            res.json({
-                success: true,
-                data: result
             });
-        })
+        
+
     });
 })
 

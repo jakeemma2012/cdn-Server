@@ -1,9 +1,7 @@
-const { DataTypes, Model } = require('sequelize');
-const sequelize = require('../config/database');
+const { DataTypes } = require('sequelize');
+const { sequelize } = require('../Database/database');
 
-class TV_Series extends Model {}
-
-TV_Series.init({
+const TVSeries = sequelize.define('TVSeries', {
     id: {
         type: DataTypes.INTEGER,
         primaryKey: true,
@@ -21,10 +19,7 @@ TV_Series.init({
         type: DataTypes.INTEGER,
         allowNull: false
     }
-}, {
-    sequelize,
-    modelName: 'TV_Series',
-    tableName: 'tv_series'
-})
+},
+);
 
-module.exports = TV_Series;
+module.exports = TVSeries;
