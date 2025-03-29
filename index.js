@@ -1,12 +1,14 @@
 require('dotenv').config({ path: './.env' });
 const express = require('express');
 const {app,db} = require('./Database/database');
-const movieRouter = require('./Movie');
+const movieRouter = require('./Models/Movie');
+const jwtRouter = require('./JWT/JWT');
 const port = process.env.PORT || 3000;
 
 app.use(express.json()); 
 
 app.use('/api', movieRouter);
+app.use('/auth', jwtRouter);
 
 app.use((err, req, res, next) => {
     console.error(err.stack);
