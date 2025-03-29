@@ -7,9 +7,10 @@ const bcrypt = require('bcrypt');
 const jwtSecretKey = process.env.JWT_SECRET_KEY;
 const tokenHeaderKey = process.env.TOKEN_HEADER_KEY;
 const User = require('../Models/User');
+
+
 router.post('/login', (req, res) => {
     const { email, password } = req.body;
-
     User.findOne({ where: { email } })
         .then(user => {
             if (!user) {
@@ -28,26 +29,16 @@ router.post('/login', (req, res) => {
                 }
             });
         });
+});
 
-
-    // sequelize.query('SELECT * FROM users WHERE email = ?', [email], (err, result) => {
-    //     if (err) return res.sendStatus(500);
-    //     if (result.length === 0) return res.sendStatus(401);
-    //     const user = result[0];
-    //     bcrypt.compare(password, user.password, (err, result) => {
-    //         if (err) return res.sendStatus(500);
-    //         if (result) {
-    //             const token = jwt.sign({ email: user.email, role: user.role }, jwtSecretKey, { expiresIn: '1h' });
-    //             if (user.role === 'USER') {
-    //                 return res.json({ message: 'Login FAILED' });
-    //             }
-    //             else {
-    //                 return res.json({ message: 'Login successful', token: token });
-    //             }
-    //         }
-    //         res.sendStatus(401);
-    //     });
-    // });
+router.post('/register', (req, res) => {
+    const { email, password, role } = req.body;
+    bcrypt.hash(password, 10, (err, hash) => {
+        if (err) return res.status(500).json({ message: 'Hashing password failed', error: err });
+        User.create({ email, password: hash, role })
+            .then(user => res.json({ message: 'Register successful', user: user }))
+            .catch(err => res.status(500).json({ message: 'Register failed', error: err }));
+    });
 });
 
 

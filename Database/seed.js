@@ -1,28 +1,17 @@
-const Actor = require('../Models/Actors');
-const Episode = require('../Models/Episodes');
-const Seasion = require('../Models/Seasions');
-const TVSeries = require('../Models/TV_Series');
-const WatchList = require('../Models/Watchlist');
-const Movie = require('../Models/Movie');
-
+const LinkVideos = require('../Models/LinkVideos');
+const LinkImages = require('../Models/LinkImages');
+const User = require('../Models/User');
 
 const seedData = async () => {
     try {
-        const movieCount = await Movie.count();
-        const actorCount = await Actor.count();
-        const episodeCount = await Episode.count();
-        const seasionCount = await Seasion.count();
-        const tvSeriesCount = await TVSeries.count();
-        const watchListCount = await WatchList.count();
+        const linkVideosCount = await LinkVideos.count();
+        const linkImagesCount = await LinkImages.count();
+        const userCount = await User.count();
 
         console.log('Table status:');
-        console.log(`- Actors: ${actorCount} records`);
-        console.log(`- Episodes: ${episodeCount} records`);
-        console.log(`- Movies: ${movieCount} records`);
-        console.log(`- Seasions: ${seasionCount} records`);
-        console.log(`- TVSeries: ${tvSeriesCount} records`);
-        console.log(`- WatchList: ${watchListCount} records`);
-
+        console.log(`- LinkVideos: ${linkVideosCount} records`);
+        console.log(`- LinkImages: ${linkImagesCount} records`);
+        console.log(`- User: ${userCount} records`);
         console.log('Database tables are ready');
     } catch (error) {
         console.error('Error checking database:', error);

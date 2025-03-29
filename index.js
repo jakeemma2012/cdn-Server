@@ -4,20 +4,47 @@ const { app, sequelize } = require('./Database/database');
 const movieRouter = require('./Services/MovieServices');
 const jwtRouter = require('./JWT/JWT');
 const port = process.env.PORT || 3000;
+const seedDatabase = require('./Database/seed');
 
 app.use(express.json());
 
-// Sync database
-sequelize.sync({ force: false })
-    .then(() => {
-        console.log('Database synced');
-        // Start server after database is synced
+const createTables = async () => {
+    try {
+        await sequelize.query(`
+            CREATE TABLE IF NOT EXISTS link_videos (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                link VARCHAR(255) NOT NULL
+            )
+        `);
+
+        await sequelize.query(`
+            CREATE TABLE IF NOT EXISTS link_images (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                link VARCHAR(255) NOT NULL
+            )
+        `);
+
+        await sequelize.query(`
+            CREATE TABLE IF NOT EXISTS Users (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                email VARCHAR(255) NOT NULL UNIQUE,
+                password VARCHAR(255) NOT NULL,
+                role VARCHAR(50) NOT NULL
+            )
+        `);
+
+        console.log('Links table created');
+    } catch (error) {
+        console.error('Error creating tables:', error);
+    }
+};
+
+createTables()
+    .then(async () => {
+        await seedDatabase();
         app.listen(port, () => {
             console.log(`Server is running on port ${port}`);
         });
-    })
-    .catch(err => {
-        console.error('Unable to sync database:', err);
     });
 
 app.use('/api', movieRouter);

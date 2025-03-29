@@ -2,7 +2,7 @@ const { DataTypes } = require('sequelize');
 const { sequelize } = require('../Database/database');
 
 const User = sequelize.define('User', {
-    user_id: {
+    id: {
         type: DataTypes.INTEGER,
         primaryKey: true,
         autoIncrement: true
@@ -16,7 +16,8 @@ const User = sequelize.define('User', {
         allowNull: false
     },
     role: {
-        type: DataTypes.STRING,
+        type: DataTypes.ENUM('USER', 'ADMIN'),
+        defaultValue: 'USER',
         allowNull: false
     }
 }, {
