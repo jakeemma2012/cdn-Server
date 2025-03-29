@@ -2,32 +2,20 @@ const { DataTypes } = require('sequelize');
 const { sequelize } = require('../Database/database');
 
 const Movie = sequelize.define('Movie', {
-    id: {
+    movie_id: {
         type: DataTypes.INTEGER,
         primaryKey: true,
         autoIncrement: true
     },
-    title: {
+    director: {
         type: DataTypes.STRING,
-        allowNull: false
-    },
-    rating: {
-        type: DataTypes.FLOAT,
         allowNull: false
     },
     genres: {
         type: DataTypes.STRING,
         allowNull: false
     },
-    status: {
-        type: DataTypes.STRING,
-        allowNull: false
-    },
-    studio: {
-        type: DataTypes.STRING,
-        allowNull: false
-    },
-    director: {
+    overview_string: {
         type: DataTypes.STRING,
         allowNull: false
     },
@@ -35,19 +23,33 @@ const Movie = sequelize.define('Movie', {
         type: DataTypes.STRING,
         allowNull: false
     },
-    posterUrl: {
+    poster_url: {
         type: DataTypes.STRING,
         allowNull: false
     },
-    movieCast: {
-        type: DataTypes.STRING,
+    rating: {
+        type: DataTypes.FLOAT,
         allowNull: false
     },
-    releaseDate: {
+    release_year: {
         type: DataTypes.DATE,
         allowNull: false
     },
-}
-);
+    status: {
+        type: DataTypes.ENUM('Released', 'Upcoming', 'Canceled','Ongoing'),
+        allowNull: false
+    },
+    studio: {
+        type: DataTypes.STRING,
+        allowNull: false
+    },
+    title: {
+        type: DataTypes.STRING,
+        allowNull: false
+    },
+}, {
+    tableName: 'movie',
+    timestamps: false
+});
 
 module.exports = Movie;
