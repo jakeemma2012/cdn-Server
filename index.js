@@ -1,20 +1,20 @@
-require('dotenv').config({ path: './.env' });
-const express = require('express');
-const {app,db} = require('./Database/database');
-const movieRouter = require('./Movie');
+require("dotenv").config({ path: "./.env" });
+const express = require("express");
+const { app, db } = require("./Database/database");
+const movieRouter = require("./Movie");
 const port = process.env.PORT || 3000;
 
-app.use(express.json()); 
+app.use(express.json());
 
-app.use('/api', movieRouter);
+app.use("/api", movieRouter);
 
 app.use((err, req, res, next) => {
-    console.error(err.stack);
-    res.status(500).send('Something broke!');
+  console.error(err.stack);
+  res.status(500).send("Something broke!");
 });
 
 app.listen(port, () => {
-    console.log(`Server is running on port ${port}`);
+  console.log(`Server is running on port ${port}`);
 });
 
 const jwtSecretKey = process.env.JWT_SECRET_KEY;
