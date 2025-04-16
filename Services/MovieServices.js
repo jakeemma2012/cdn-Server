@@ -12,6 +12,10 @@ const movie_cast = require("../Models/MovieCast");
 const LinkVideos = require("../Models/LinkVideos");
 const LinkImages = require("../Models/LinkImages");
 
+
+
+
+//// authenticate
 const authenticate = (req, res, next) => {
   const authHeader = req.headers["authorization"];
   const token = authHeader && authHeader.split(" ")[1];
@@ -29,6 +33,7 @@ const authenticate = (req, res, next) => {
   });
 };
 
+//// upload video
 router.post(
   "/uploads_video",
   upload.single("video"),
@@ -56,6 +61,7 @@ router.post(
   }
 );
 
+//// upload image
 router.post(
   "/uploads_image",
   authenticate,
@@ -82,6 +88,8 @@ router.post(
   }
 );
 
+
+//// upload all
 router.post(
   "/uploads_all",
   handleMulterError,
@@ -102,8 +110,11 @@ router.post(
       const image = req.files["image"][0].filename;
       const video = req.files["video"][0].filename;
 
-      const link_image = `${BASE_URL}/uploads/images/${image}`;
-      const link_video = `${BASE_URL}/uploads/videos/${video}`;
+      // const link_image = `${BASE_URL}/uploads/images/${image}`;
+      // const link_video = `${BASE_URL}/uploads/videos/${video}`;
+
+      const link_image = image;
+      const link_video = video;
 
       const [imageLink, videoLink] = await Promise.all([
         LinkImages.create({ link: link_image }),
@@ -128,101 +139,109 @@ router.post(
   }
 );
 
-router.get("/uploads/:filename", (req, res) => {
-  const { filename } = req.params;
-  const filePath = path.join(__dirname, "../uploads/videos/", filename);
-  if (fs.existsSync(filePath)) {
-    res.sendFile(filePath);
-  } else {
-    res.status(404).json({
+
+router.post("/delete_file", async (req, res) => {
+  try {
+    const { linkImage, linkVideo } = req.body;
+
+    const regex = /\/uploads\/(images|videos)\/(.*)/;
+
+    console.log(linkImage);
+    console.log(linkVideo);
+    const imageLink = await LinkImages.findOne({ where: { link: linkImage } });
+    const videoLink = await LinkVideos.findOne({ where: { link: linkVideo } });
+
+    let countDelete = 0;
+    let deletedFiles = [];
+
+    if (imageLink) {
+      const matchImage = linkImage[0].match(regex);
+      if (matchImage) {
+        const filePath = path.join(__dirname, '..', matchImage[0]);
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+          await LinkImages.destroy({ where: { link: linkImage[0] } });
+          countDelete++;
+          deletedFiles.push('image delete : ' + filePath.split("\\").pop());
+        }
+      }
+    }
+
+    if (videoLink) {
+      const matchVideo = linkVideo[0].match(regex);
+      if (matchVideo) {
+        const filePath = path.join(__dirname, '..', matchVideo[0]);
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+          await LinkVideos.destroy({ where: { link: linkVideo[0] } });
+          countDelete++;
+          deletedFiles.push('video delete : ' + filePath.split("\\").pop());
+        }
+      }
+    }
+
+    if (countDelete > 0) {
+      res.json({
+        success: true,
+        message: "Files deleted successfully",
+        deletedFiles: deletedFiles
+      });
+    } else {
+      res.status(404).json({
+        success: false,
+        message: "No files found to delete",
+        details: {
+          imageExists: !!imageLink,
+          videoExists: !!videoLink
+        }
+      });
+    }
+  } catch (err) {
+    console.error('Delete error:', err);
+    res.status(500).json({
       success: false,
-      message: "File not found",
+      message: "Error deleting files",
+      error: err.message
     });
   }
 });
 
-router.get("/movies/:id", (req, res) => {
-  const { id } = req.params;
-  Movie.findByPk(id)
-    .then((movie) => {
-      res.json({
-        success: true,
-        data: movie,
-      });
-    })
-    .catch((err) => {
-      res.status(500).json({
-        success: false,
-        message: "Database query failed",
-        error: err.message,
-      });
-    });
-});
 
-router.post("/delete_file", async (req, res) => {
-    try {
-      const { linkImage, linkVideo } = req.body;
+//// get video or image
+router.get("/get_assets", (req, res) => {
+  const { linkVideo, linkImage } = req.query;
 
-        const regex = /\/uploads\/(images|videos)\/(.*)/;
+  // console.log(linkVideo);
+  // console.log(linkImage);
 
-        console.log(linkImage);
-        console.log(linkVideo);
-        const imageLink = await LinkImages.findOne({ where: { link: linkImage } });
-        const videoLink = await LinkVideos.findOne({ where: { link: linkVideo } });
-
-        let countDelete = 0;
-        let deletedFiles = [];
-
-        if (imageLink) {
-            const matchImage = linkImage[0].match(regex);
-            if (matchImage) {
-                const filePath = path.join(__dirname, '..', matchImage[0]);
-                if (fs.existsSync(filePath)) {
-                    fs.unlinkSync(filePath);
-                    await LinkImages.destroy({ where: { link: linkImage[0] } });
-                    countDelete++;
-                    deletedFiles.push('image delete : ' + filePath.split("\\").pop());
-                }
-            }
-        }
-
-        if (videoLink) {
-            const matchVideo = linkVideo[0].match(regex);
-            if (matchVideo) {
-                const filePath = path.join(__dirname, '..', matchVideo[0]);
-                if (fs.existsSync(filePath)) {
-                    fs.unlinkSync(filePath);
-                    await LinkVideos.destroy({ where: { link: linkVideo[0] } });
-                    countDelete++;
-                    deletedFiles.push('video delete : ' + filePath.split("\\").pop());
-                }
-            }
-        }
-
-        if (countDelete > 0) {
-            res.json({ 
-                success: true, 
-                message: "Files deleted successfully",
-                deletedFiles: deletedFiles
-            });
-        } else {
-            res.status(404).json({ 
-                success: false, 
-                message: "No files found to delete",
-                details: {
-                    imageExists: !!imageLink,
-                    videoExists: !!videoLink
-                }
-            });
-        }
-    } catch (err) {
-        console.error('Delete error:', err);
-        res.status(500).json({ 
-            success: false, 
-            message: "Error deleting files",
-            error: err.message 
+  if (linkVideo || linkImage) {
+    if (linkVideo) {
+      const videoPath = path.join(__dirname, '..', 'uploads', 'videos', linkVideo);
+      if (fs.existsSync(videoPath)) {
+        res.sendFile(videoPath);
+      } else {
+        res.status(404).json({
+          success: false,
+          message: "Video not found"
         });
+      }
+    } else {
+      const imagePath = path.join(__dirname, '..', 'uploads', 'images', linkImage);
+      if (fs.existsSync(imagePath)) {
+        res.sendFile(imagePath);
+      } else {
+        res.status(404).json({
+          success: false,
+          message: "Image not found"
+        });
+      }
     }
+  } else {
+    res.status(400).json({
+      success: false,
+      message: "Link video or link image are required"
+    });
+  }
 });
 
 module.exports = router;
