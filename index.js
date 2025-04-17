@@ -25,6 +25,14 @@ const createTables = async () => {
             )
         `);
 
+
+    await sequelize.query(`
+          CREATE TABLE IF NOT EXISTS link_backdrops (
+              id INT AUTO_INCREMENT PRIMARY KEY,
+              link VARCHAR(255) NOT NULL
+          )
+      `);
+
     await sequelize.query(`
             CREATE TABLE IF NOT EXISTS Users (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -33,6 +41,8 @@ const createTables = async () => {
                 role VARCHAR(50) NOT NULL
             )
         `);
+
+
 
     console.log("Links table created");
   } catch (error) {

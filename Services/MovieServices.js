@@ -12,6 +12,7 @@ const movie_cast = require("../Models/MovieCast");
 const LinkVideos = require("../Models/LinkVideos");
 const LinkImages = require("../Models/LinkImages");
 const { sanitizeFilename } = require("../Utils/process");
+const LinkBackDrop = require("../Models/LinkBackDrop");
 
 
 
@@ -96,6 +97,7 @@ router.post(
   upload.fields([
     { name: "image", maxCount: 1 },
     { name: "video", maxCount: 1 },
+    { name: "backdrop", maxCount: 1 },
   ]),
 
   async (req, res) => {
@@ -109,13 +111,16 @@ router.post(
 
       const image = req.files["image"][0].filename;
       const video = req.files["video"][0].filename;
+      const backdrop = req.files["backdrop"][0].filename;
 
       const link_image = `${sanitizeFilename(image)}`;
       const link_video = `${sanitizeFilename(video)}`;
+      const link_backdrop = `${sanitizeFilename(backdrop)}`;
 
-      const [imageLink, videoLink] = await Promise.all([
+      const [imageLink, videoLink, backdropLink] = await Promise.all([
         LinkImages.create({ link: link_image }),
         LinkVideos.create({ link: link_video }),
+        LinkBackDrop.create({ link: link_backdrop }),
       ]);
 
       res.json({
@@ -124,6 +129,7 @@ router.post(
         data: {
           linkIMG: imageLink,
           linkVIDEO: videoLink,
+          linkBACKDROP: backdropLink,
         },
       });
     } catch (err) {

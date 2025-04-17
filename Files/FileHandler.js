@@ -9,6 +9,8 @@ const storage = multer.diskStorage({
             cb(null, 'uploads/images');
         } else if (file.fieldname === 'video') {
             cb(null, 'uploads/videos');
+        } else if (file.fieldname === 'backdrop') {
+            cb(null, 'uploads/backdrops');
         }
     },
     filename: function (req, file, cb) {
@@ -19,6 +21,8 @@ const storage = multer.diskStorage({
             uploadPath = path.join('uploads/images', file.originalname);
         } else if (file.fieldname === 'video') {
             uploadPath = path.join('uploads/videos', file.originalname);
+        } else if (file.fieldname === 'backdrop') {
+            uploadPath = path.join('uploads/backdrops', file.originalname);
         }
 
         if (fs.existsSync(uploadPath)) {
@@ -44,6 +48,12 @@ const upload = multer({
                 cb(null, true);
             } else {
                 cb(new Error('Only video files are allowed!'));
+            }
+        } else if (file.fieldname === 'backdrop') {
+            if (file.mimetype.startsWith('image/')) {
+                cb(null, true);
+            } else {
+                cb(new Error('Only image files are allowed!'));
             }
         } else {
             cb(new Error('Invalid field name'));
