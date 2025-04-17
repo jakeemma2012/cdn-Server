@@ -1,6 +1,7 @@
 const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
+const { sanitizeFilename } = require('../Utils/process');
 
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
@@ -11,7 +12,8 @@ const storage = multer.diskStorage({
         }
     },
     filename: function (req, file, cb) {
-
+        const sanitizedName = sanitizeFilename(file.originalname);
+        file.originalname = sanitizedName;
         let uploadPath;
         if (file.fieldname === 'image') {
             uploadPath = path.join('uploads/images', file.originalname);
@@ -19,7 +21,7 @@ const storage = multer.diskStorage({
             uploadPath = path.join('uploads/videos', file.originalname);
         }
 
-        if(fs.existsSync(uploadPath)){
+        if (fs.existsSync(uploadPath)) {
             return cb(new Error(`File ${file.originalname} already exists in ${file.fieldname} directory`));
         }
 
@@ -27,9 +29,9 @@ const storage = multer.diskStorage({
     }
 });
 
-const upload = multer({ 
+const upload = multer({
     storage: storage,
-    limits: { fileSize: 500 * 1024 * 1024 }, 
+    limits: { fileSize: 500 * 1024 * 1024 },
     fileFilter: (req, file, cb) => {
         if (file.fieldname === 'image') {
             if (file.mimetype.startsWith('image/')) {
@@ -48,6 +50,7 @@ const upload = multer({
         }
     }
 });
+
 
 const handleMulterError = (err, req, res, next) => {
     if (err) {

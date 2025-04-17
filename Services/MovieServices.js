@@ -11,7 +11,7 @@ const fs = require("fs");
 const movie_cast = require("../Models/MovieCast");
 const LinkVideos = require("../Models/LinkVideos");
 const LinkImages = require("../Models/LinkImages");
-
+const { sanitizeFilename } = require("../Utils/process");
 
 
 
@@ -110,11 +110,8 @@ router.post(
       const image = req.files["image"][0].filename;
       const video = req.files["video"][0].filename;
 
-      // const link_image = `${BASE_URL}/uploads/images/${image}`;
-      // const link_video = `${BASE_URL}/uploads/videos/${video}`;
-
-      const link_image = image;
-      const link_video = video;
+      const link_image = `${sanitizeFilename(image)}`;
+      const link_video = `${sanitizeFilename(video)}`;
 
       const [imageLink, videoLink] = await Promise.all([
         LinkImages.create({ link: link_image }),
