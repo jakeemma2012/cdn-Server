@@ -145,15 +145,17 @@ router.post(
 
 router.post("/delete_file", async (req, res) => {
   try {
-    const { linkImage, linkVideo } = req.body;
+    const { linkImage, linkVideo, linkBackdrop } = req.body;
 
-    const regex = /\/uploads\/(images|videos)\/(.*)/;
+    const regex = /\/uploads\/(images|videos|backdrops)\/(.*)/;
 
     console.log(linkImage);
     console.log(linkVideo);
+    console.log(linkBackdrop);
+
     const imageLink = await LinkImages.findOne({ where: { link: linkImage } });
     const videoLink = await LinkVideos.findOne({ where: { link: linkVideo } });
-
+    const backdropLink = await LinkBackDrop.findOne({ where: { link: linkBackdrop } });
     let countDelete = 0;
     let deletedFiles = [];
 
@@ -183,6 +185,19 @@ router.post("/delete_file", async (req, res) => {
       }
     }
 
+    if (backdropLink) {
+      const matchBackdrop = linkBackdrop[0].match(regex);
+      if (matchBackdrop) {
+        const filePath = path.join(__dirname, '..', matchBackdrop[0]);
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+          await LinkBackDrop.destroy({ where: { link: linkBackdrop[0] } });
+          countDelete++;
+          deletedFiles.push('backdrop delete : ' + filePath.split("\\").pop());
+        }
+      }
+    }
+
     if (countDelete > 0) {
       res.json({
         success: true,
@@ -195,7 +210,8 @@ router.post("/delete_file", async (req, res) => {
         message: "No files found to delete",
         details: {
           imageExists: !!imageLink,
-          videoExists: !!videoLink
+          videoExists: !!videoLink,
+          backdropExists: !!backdropLink
         }
       });
     }
@@ -212,32 +228,71 @@ router.post("/delete_file", async (req, res) => {
 
 //// get video or image
 router.get("/get_assets", (req, res) => {
-  const { linkVideo, linkImage } = req.query;
+  const { linkVideo, linkImage, linkCast, linkBackdrop, nameTag, nameMovie } = req.query;
+  console.log(linkVideo);
+  if (linkVideo || linkImage || linkCast || linkBackdrop) {
+    switch (nameTag) {
+      case "poster":
+        if (linkImage) {
+          const imagePath = path.join(__dirname, '..', 'uploads', 'images', linkImage);
+          if (fs.existsSync(imagePath)) {
+            res.sendFile(imagePath);
+          } else {
+            res.status(404).json({
+              success: false,
+              message: "Image not found"
+            });
+          }
+        }
+        break;
+      case "backdrop":
+        if (linkBackdrop) {
+          const backdropPath = path.join(__dirname, '..', 'uploads', 'backdrops', linkBackdrop);
+          if (fs.existsSync(backdropPath)) {
+            res.sendFile(backdropPath);
+          } else {
+            res.status(404).json({
+              success: false,
+              message: "Backdrop not found"
+            });
+          }
+        }
+        break;
+      case "video":
+        if (linkVideo) {
+          console.log(linkVideo);
+          const videoPath = path.join(__dirname, '..', 'uploads', 'videos', linkVideo);
+          if (fs.existsSync(videoPath)) {
+            res.sendFile(videoPath);
+          } else {
+            res.status(404).json({
+              success: false,
+              message: "Video not found"
+            });
+          }
+        }
+        break;
+      case "cast":
+        if (linkCast) {
+          console.log(nameMovie);
+          console.log(linkCast);
+          const castPath = path.join(__dirname, '..', 'uploads', 'casts', nameMovie, linkCast);
+          if (fs.existsSync(castPath)) {
+            res.sendFile(castPath);
+          } else {
+            res.status(404).json({
+              success: false,
+              message: "Cast not found"
+            });
+          }
+        }
+        break;
 
-  // console.log(linkVideo);
-  // console.log(linkImage);
-
-  if (linkVideo || linkImage) {
-    if (linkVideo) {
-      const videoPath = path.join(__dirname, '..', 'uploads', 'videos', linkVideo);
-      if (fs.existsSync(videoPath)) {
-        res.sendFile(videoPath);
-      } else {
-        res.status(404).json({
+      default:
+        res.status(400).json({
           success: false,
-          message: "Video not found"
+          message: "Invalid name tag"
         });
-      }
-    } else {
-      const imagePath = path.join(__dirname, '..', 'uploads', 'images', linkImage);
-      if (fs.existsSync(imagePath)) {
-        res.sendFile(imagePath);
-      } else {
-        res.status(404).json({
-          success: false,
-          message: "Image not found"
-        });
-      }
     }
   } else {
     res.status(400).json({
