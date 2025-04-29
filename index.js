@@ -6,8 +6,15 @@ const jwtRouter = require("./JWT/JWT");
 const port = process.env.PORT || 3000;
 const seedDatabase = require("./Database/seed");
 const multer = require('multer');
+const path = require('path');
 
 app.use(express.json());
+
+app.use((req, res, next) => {
+  console.log('Request:', req.method, req.url);
+  next();
+});
+
 
 const createTables = async () => {
   try {
@@ -56,6 +63,11 @@ createTables().then(async () => {
     console.log(`Server is running on port ${port}`);
   });
 });
+
+const uploadsPath = path.join(__dirname, 'uploads');
+console.log('Uploads serving from:', uploadsPath); // <- debug xem đường dẫn thật sự
+
+app.use('/uploads', express.static(uploadsPath));
 
 app.use("/api", movieRouter);
 app.use("/auth", jwtRouter);

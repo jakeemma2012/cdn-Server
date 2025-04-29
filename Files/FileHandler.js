@@ -2,6 +2,9 @@ const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
 const { sanitizeFilename } = require('../Utils/process');
+const { exec } = require('child_process');
+const compressVideoBackground = require('../Services/CompressService');
+
 
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
@@ -13,6 +16,7 @@ const storage = multer.diskStorage({
             cb(null, 'uploads/backdrops');
         }
     },
+
     filename: function (req, file, cb) {
         const sanitizedName = sanitizeFilename(file.originalname);
         file.originalname = sanitizedName;
@@ -21,6 +25,7 @@ const storage = multer.diskStorage({
             uploadPath = path.join('uploads/images', file.originalname);
         } else if (file.fieldname === 'video') {
             uploadPath = path.join('uploads/videos', file.originalname);
+
         } else if (file.fieldname === 'backdrop') {
             uploadPath = path.join('uploads/backdrops', file.originalname);
         }
@@ -30,8 +35,30 @@ const storage = multer.diskStorage({
         }
 
         cb(null, file.originalname);
+
     }
 });
+
+const compressMiddleWare = async (req, res, next) => {
+    try {
+        if (req.files && req.files.video) {
+            const videoFile = Array.isArray(req.files.video) ? req.files.video[0] : req.files.video;
+
+            const videoPath = videoFile.path;
+            const folderName = req.body.name || sanitizeFilename(req.query.name) || 'DefaultName';
+
+            console.log('Compressing video:', videoPath, 'to folder:', folderName);
+
+            compressVideoBackground(videoPath, folderName);
+        }
+        next();
+    } catch (err) {
+        console.error('Error during compressing video:', err);
+        res.status(500).json({ success: false, message: 'Video processing failed.' });
+    }
+};
+
+
 
 const upload = multer({
     storage: storage,
@@ -61,7 +88,6 @@ const upload = multer({
     }
 });
 
-
 const handleMulterError = (err, req, res, next) => {
     if (err) {
         console.log(err);
@@ -73,4 +99,4 @@ const handleMulterError = (err, req, res, next) => {
     next();
 };
 
-module.exports = { upload, handleMulterError };
+module.exports = { upload, handleMulterError, compressMiddleWare };

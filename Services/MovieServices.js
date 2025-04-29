@@ -5,7 +5,7 @@ const jwt = require("jsonwebtoken");
 const jwtSecretKey = process.env.JWT_SECRET_KEY;
 const Movie = require("../Models/Movie");
 const BASE_URL = process.env.BASE_URL;
-const { upload, handleMulterError } = require("../Files/FileHandler");
+const { upload, handleMulterError, compressMiddleWare } = require("../Files/FileHandler");
 const path = require("path");
 const fs = require("fs");
 const movie_cast = require("../Models/MovieCast");
@@ -13,8 +13,7 @@ const LinkVideos = require("../Models/LinkVideos");
 const LinkImages = require("../Models/LinkImages");
 const { sanitizeFilename } = require("../Utils/process");
 const LinkBackDrop = require("../Models/LinkBackDrop");
-
-
+const { exec } = require('child_process');
 
 //// authenticate
 const authenticate = (req, res, next) => {
@@ -98,7 +97,7 @@ router.post(
     { name: "image", maxCount: 1 },
     { name: "video", maxCount: 1 },
     { name: "backdrop", maxCount: 1 },
-  ]),
+  ]), compressMiddleWare,
 
   async (req, res) => {
     try {
@@ -109,13 +108,17 @@ router.post(
         });
       }
 
+      const folderName = req.body.name || req.query.name || 'DefaultName';
+
+
       const image = req.files["image"][0].filename;
       const video = req.files["video"][0].filename;
       const backdrop = req.files["backdrop"][0].filename;
 
-      const link_image = `${sanitizeFilename(image)}`;
-      const link_video = `${sanitizeFilename(video)}`;
-      const link_backdrop = `${sanitizeFilename(backdrop)}`;
+
+      const link_image = `uploads/images/${sanitizeFilename(image)}`;
+      const link_video = `uploads/videos/${sanitizeFilename(folderName)}/master.m3u8`;
+      const link_backdrop = `uploads/backdrops/${sanitizeFilename(backdrop)}`;
 
       const [imageLink, videoLink, backdropLink] = await Promise.all([
         LinkImages.create({ link: link_image }),
@@ -229,7 +232,9 @@ router.post("/delete_file", async (req, res) => {
 //// get video or image
 router.get("/get_assets", (req, res) => {
   const { linkVideo, linkImage, linkCast, linkBackdrop, nameTag, nameMovie } = req.query;
+
   console.log(linkVideo);
+
   if (linkVideo || linkImage || linkCast || linkBackdrop) {
     switch (nameTag) {
       case "poster":
@@ -300,6 +305,42 @@ router.get("/get_assets", (req, res) => {
       message: "Link video or link image are required"
     });
   }
+});
+
+
+router.get('/assets/get_trailer', (req, res) => {
+  const linkAssets = req.query.linkAssets; // Ex: uploads/videos/Novocaine/master.m3u8
+
+  if (!linkAssets) {
+    return res.status(400).send('Missing linkAssets parameter');
+  }
+
+  const filePath = path.join(__dirname, '..', linkAssets); // "../uploads/videos/Novocaine/master.m3u8"
+  console.log('Sending file:', filePath);
+
+  if (fs.existsSync(filePath)) {
+    res.sendFile(filePath);
+  } else {
+    res.status(404).send('File not found');
+  }
+});
+
+
+router.get('/uploads/videos/:folder/:file', (req, res) => {
+  const { folder, file } = req.params;
+  const filePath = path.join(__dirname, '..', 'uploads', 'videos', folder, file);
+
+  fs.access(filePath, fs.constants.F_OK, (err) => {
+    if (err) {
+      console.error('File not found:', filePath);
+      return res.status(404).json({ error: 'File not found' });
+    }
+
+    console.log('Serving video segment:', filePath);
+
+    res.setHeader('Content-Type', 'video/mp2t');
+    fs.createReadStream(filePath).pipe(res);
+  });
 });
 
 module.exports = router;
