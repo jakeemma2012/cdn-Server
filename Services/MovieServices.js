@@ -14,6 +14,7 @@ const LinkImages = require("../Models/LinkImages");
 const { sanitizeFilename } = require("../Utils/process");
 const LinkBackDrop = require("../Models/LinkBackDrop");
 const { exec } = require('child_process');
+const { dir } = require("console");
 
 //// authenticate
 const authenticate = (req, res, next) => {
@@ -112,13 +113,13 @@ router.post(
 
 
       const image = req.files["image"][0].filename;
-      const video = req.files["video"][0].filename;
+      // const video = req.files["video"][0].filename;
       const backdrop = req.files["backdrop"][0].filename;
 
 
-      const link_image = `uploads/images/${sanitizeFilename(image)}`;
+      const link_image = `${sanitizeFilename(image)}`;
       const link_video = `uploads/videos/${sanitizeFilename(folderName)}/master.m3u8`;
-      const link_backdrop = `uploads/backdrops/${sanitizeFilename(backdrop)}`;
+      const link_backdrop = `${sanitizeFilename(backdrop)}`;
 
       const [imageLink, videoLink, backdropLink] = await Promise.all([
         LinkImages.create({ link: link_image }),
@@ -163,41 +164,34 @@ router.post("/delete_file", async (req, res) => {
     let deletedFiles = [];
 
     if (imageLink) {
-      const matchImage = linkImage[0].match(regex);
-      if (matchImage) {
-        const filePath = path.join(__dirname, '..', matchImage[0]);
-        if (fs.existsSync(filePath)) {
-          fs.unlinkSync(filePath);
-          await LinkImages.destroy({ where: { link: linkImage[0] } });
-          countDelete++;
-          deletedFiles.push('image delete : ' + filePath.split("\\").pop());
-        }
+      const filePath = path.join(__dirname, '..', '/uploads/images', linkImage[0]);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+        await LinkImages.destroy({ where: { link: linkImage[0] } });
+        countDelete++;
+        deletedFiles.push('image delete : ' + filePath.split("\\").pop());
       }
     }
 
     if (videoLink) {
-      const matchVideo = linkVideo[0].match(regex);
-      if (matchVideo) {
-        const filePath = path.join(__dirname, '..', matchVideo[0]);
-        if (fs.existsSync(filePath)) {
-          fs.unlinkSync(filePath);
-          await LinkVideos.destroy({ where: { link: linkVideo[0] } });
-          countDelete++;
-          deletedFiles.push('video delete : ' + filePath.split("\\").pop());
-        }
+      const filePath = path.join(__dirname, '..', linkVideo[0]);
+      const filePathFolder = path.dirname(filePath);
+      console.log("FILE : " + filePathFolder);
+      if (fs.existsSync(filePath)) {
+        fs.rmSync(filePathFolder, { recursive: true, force: true });
+        await LinkVideos.destroy({ where: { link: linkVideo[0] } });
+        countDelete++;
+        deletedFiles.push('video folder delete : ' + filePathFolder.split("\\").pop());
       }
     }
 
     if (backdropLink) {
-      const matchBackdrop = linkBackdrop[0].match(regex);
-      if (matchBackdrop) {
-        const filePath = path.join(__dirname, '..', matchBackdrop[0]);
-        if (fs.existsSync(filePath)) {
-          fs.unlinkSync(filePath);
-          await LinkBackDrop.destroy({ where: { link: linkBackdrop[0] } });
-          countDelete++;
-          deletedFiles.push('backdrop delete : ' + filePath.split("\\").pop());
-        }
+      const filePath = path.join(__dirname, '..', '/uploads/backdrops', linkBackdrop[0]);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+        await LinkBackDrop.destroy({ where: { link: linkBackdrop[0] } });
+        countDelete++;
+        deletedFiles.push('backdrop delete : ' + filePath.split("\\").pop());
       }
     }
 

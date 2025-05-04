@@ -65,7 +65,7 @@ createTables().then(async () => {
 });
 
 const uploadsPath = path.join(__dirname, 'uploads');
-console.log('Uploads serving from:', uploadsPath); // <- debug xem đường dẫn thật sự
+console.log('Uploads serving from:', uploadsPath); //
 
 app.use('/uploads', express.static(uploadsPath));
 

@@ -2,7 +2,7 @@ const path = require('path');
 const { exec } = require('child_process');
 const fs = require('fs');
 
-// Helper: Convert exec to Promise
+//
 function execPromise(command) {
     return new Promise((resolve, reject) => {
         exec(command, (error, stdout, stderr) => {
@@ -15,7 +15,7 @@ function execPromise(command) {
     });
 }
 
-// Helper: Xóa file sau delay (ms)
+// delete files after miliseconds
 function deleteFileAfterDelay(filePath, delayMs = 5000) {
     setTimeout(() => {
         fs.unlink(filePath, (err) => {
@@ -28,7 +28,8 @@ function deleteFileAfterDelay(filePath, delayMs = 5000) {
     }, delayMs);
 }
 
-// Helper: Tạo file master.m3u8
+
+// create m3u8 files
 function createMasterPlaylist(baseDir, qualities) {
     const masterPath = path.join(baseDir, 'master.m3u8');
     let playlistContent = '#EXTM3U\n\n';
@@ -82,7 +83,6 @@ async function compressAndSplitVideo(videoPath, folderName) {
         }
     }
 
-    // ➡ Sau khi tất cả chất lượng xong, tạo file master
     createMasterPlaylist(mainOutputDir, qualities);
 
     deleteFileAfterDelay(videoPath);
