@@ -15,8 +15,17 @@ const { sanitizeFilename } = require("../Utils/process");
 const LinkBackDrop = require("../Models/LinkBackDrop");
 const { exec } = require('child_process');
 const { dir } = require("console");
+const axios = require('axios');
+const FormData = require('form-data');
 
-//// authenticate
+// Constants
+const CHUNK_SIZE = 1024 * 1024; // 1MB chunks
+const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_VIDEO_SIZE = 10 * 1024 * 1024 * 1024; // 10GB
+const MAX_BACKDROP_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_RETRIES = 3;
+
+// Authentication middleware
 const authenticate = (req, res, next) => {
   const authHeader = req.headers["authorization"];
   const token = authHeader && authHeader.split(" ")[1];
@@ -34,33 +43,108 @@ const authenticate = (req, res, next) => {
   });
 };
 
-//// upload video
-router.post(
-  "/uploads_video",
-  upload.single("video"),
-  handleMulterError,
-  (req, res) => {
-    console.log("has ping to this route");
-    const video = req.file.filename;
-    const link = `${BASE_URL}/uploads/videos/${video}`;
+// Helper functions
+const validateFiles = (image, video, backdrop) => {
+  const errors = [];
 
-    LinkVideos.create({ link })
-      .then((link) => {
-        res.json({
-          success: true,
-          message: "Link added successfully",
-          data: link,
-        });
-      })
-      .catch((err) => {
-        res.status(500).json({
-          success: false,
-          message: "Database query failed",
-          error: err.message,
-        });
-      });
+  if (!image || !image.name) errors.push('Image file is required');
+  if (!video || !video.name) errors.push('Video file is required');
+  if (!backdrop || !backdrop.name) errors.push('Backdrop file is required');
+
+  if (image && !image.type.startsWith('image/')) errors.push('Invalid image file type');
+  if (video && !video.type.startsWith('video/')) errors.push('Invalid video file type');
+  if (backdrop && !backdrop.type.startsWith('image/')) errors.push('Invalid backdrop file type');
+
+  if (image && image.size > MAX_IMAGE_SIZE) errors.push('Image file size exceeds limit');
+  if (video && video.size > MAX_VIDEO_SIZE) errors.push('Video file size exceeds limit');
+  if (backdrop && backdrop.size > MAX_IMAGE_SIZE) errors.push('Backdrop file size exceeds limit');
+
+  if (errors.length > 0) {
+    throw new Error(`Validation failed: ${errors.join(', ')}`);
   }
-);
+};
+
+const uploadChunk = async (chunk, chunkIndex, totalChunks, fileName, fileType) => {
+  const formData = new FormData();
+  formData.append('chunk', chunk);
+  formData.append('chunkIndex', chunkIndex);
+  formData.append('totalChunks', totalChunks);
+  formData.append('fileName', fileName);
+  formData.append('fileType', fileType);
+
+  let retryCount = 0;
+  while (retryCount < MAX_RETRIES) {
+    try {
+      const response = await axios.post(
+        `${BASE_URL}/api/chunk`,
+        formData,
+        {
+          headers: {
+            ...formData.getHeaders(),
+            'Content-Type': 'multipart/form-data'
+          },
+          timeout: UPLOAD_TIMEOUT
+        }
+      );
+      return response.data;
+    } catch (error) {
+      retryCount++;
+      if (retryCount === MAX_RETRIES) {
+        throw new Error(`Failed to upload chunk ${chunkIndex}: ${error.message}`);
+      }
+      await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retryCount)));
+    }
+  }
+};
+
+// Routes
+router.post('/uploadMovie', async (req, res) => {
+  try {
+    const { image, video, backdrop } = req.files;
+
+    validateFiles(image, video, backdrop);
+
+    // Upload chunks in parallel
+    await Promise.all([
+      uploadChunk(image[0].buffer, 0, 1, image[0].originalname, 'image'),
+      uploadChunk(video[0].buffer, 0, 1, video[0].originalname, 'video'),
+      uploadChunk(backdrop[0].buffer, 0, 1, backdrop[0].originalname, 'backdrop')
+    ]);
+
+    const folderName = req.body.name || sanitizeFilename(req.query.name) || 'DefaultName';
+
+    // Create links for database
+    const link_image = sanitizeFilename(image[0].originalname);
+    const link_video = `uploads/videos/${sanitizeFilename(Date.now() + '_' + folderName)}/master.m3u8`;
+    const link_backdrop = sanitizeFilename(backdrop[0].originalname);
+
+    // Save to database
+    const [imageLink, videoLink, backdropLink] = await Promise.all([
+      LinkImages.create({ link: link_image }),
+      LinkVideos.create({ link: link_video }),
+      LinkBackDrop.create({ link: link_backdrop })
+    ]);
+
+
+    res.json({
+      success: true,
+      message: "Movie uploaded successfully",
+      data: {
+        linkIMG: imageLink,
+        linkVIDEO: videoLink,
+        linkBACKDROP: backdropLink
+      }
+    });
+  } catch (error) {
+    console.error('Upload error:', error);
+    res.status(500).json({
+      success: false,
+      message: "Upload failed",
+      error: error.message
+    });
+  }
+});
+
 
 //// upload image
 router.post(
@@ -111,21 +195,21 @@ router.post(
 
       const folderName = req.body.name || req.query.name || 'DefaultName';
 
-
       const image = req.files["image"][0].filename;
       // const video = req.files["video"][0].filename;
       const backdrop = req.files["backdrop"][0].filename;
 
-
       const link_image = `${sanitizeFilename(image)}`;
-      const link_video = `uploads/videos/${sanitizeFilename(folderName)}/master.m3u8`;
+      const link_video = `uploads/videos/${sanitizeFilename(Date.now() + '_' + folderName)}/master.m3u8`;
       const link_backdrop = `${sanitizeFilename(backdrop)}`;
 
-      const [imageLink, videoLink, backdropLink] = await Promise.all([
-        LinkImages.create({ link: link_image }),
-        LinkVideos.create({ link: link_video }),
-        LinkBackDrop.create({ link: link_backdrop }),
-      ]);
+      const [imageLink, videoLink, backdropLink] = await Promise.all(
+        [
+          LinkImages.create({ link: link_image }),
+          LinkVideos.create({ link: link_video }),
+          LinkBackDrop.create({ link: link_backdrop }),
+        ]
+      );
 
       res.json({
         success: true,
@@ -335,6 +419,165 @@ router.get('/uploads/videos/:folder/:file', (req, res) => {
     res.setHeader('Content-Type', 'video/mp2t');
     fs.createReadStream(filePath).pipe(res);
   });
+});
+
+
+const UPLOAD_TIMEOUT = 30 * 60 * 1000; // 30 phút
+router.post('/uploadChunk',
+  upload.single('chunk'),
+  async (req, res) => {
+    req.setTimeout(UPLOAD_TIMEOUT);
+    res.setTimeout(UPLOAD_TIMEOUT);
+
+    try {
+      // Log để debug
+      console.log('Upload chunk request body:', req.body);
+      console.log('Upload chunk file:', req.file);
+
+      if (!req.file) {
+        return res.status(400).json({
+          success: false,
+          message: "No chunk file uploaded"
+        });
+      }
+
+      const { chunkIndex, totalChunks, fileName, fileType } = req.body;
+
+      if (!chunkIndex || !totalChunks || !fileName || !fileType) {
+        return res.status(400).json({
+          success: false,
+          message: "Missing required parameters",
+          received: {
+            chunkIndex,
+            totalChunks,
+            fileName,
+            fileType
+          }
+        });
+      }
+
+      const tempDir = path.join('uploads', 'chunks', fileType, fileName);
+
+      // Update progress
+      const uploadedChunks = await fs.promises.readdir(tempDir);
+      const progress = (uploadedChunks.length / totalChunks) * 100;
+
+      res.json({
+        success: true,
+        message: 'Chunk uploaded successfully',
+        progress,
+        details: {
+          fileType,
+          fileName,
+          chunkIndex,
+          totalChunks
+        }
+      });
+    } catch (error) {
+      console.error('Chunk upload error:', error);
+      res.status(500).json({
+        success: false,
+        message: "Chunk upload failed",
+        error: error.message
+      });
+    }
+  }
+);
+
+router.post('/completeUpload', async (req, res) => {
+  try {
+    const { movieDTO, imageName, videoName, backdropName } = req.body;
+
+    if (!movieDTO || !imageName || !videoName || !backdropName) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing required parameters"
+      });
+    }
+
+    const folderName = req.body.name || sanitizeFilename(req.query.name) || 'DefaultName';
+
+    // Gộp các file chunk
+    const mergeChunks = async (fileType, fileName) => {
+      const chunksDir = path.join('uploads', 'chunks', fileType, fileName);
+      const outputDir = path.join('uploads', fileType === 'video' ? 'videos' : fileType === 'image' ? 'images' : 'backdrops');
+
+      // Tạo thư mục output nếu chưa tồn tại
+      if (!fs.existsSync(outputDir)) {
+        fs.mkdirSync(outputDir, { recursive: true });
+      }
+
+      // Đọc tất cả các chunk và sắp xếp theo thứ tự
+      const chunks = await fs.promises.readdir(chunksDir);
+      chunks.sort((a, b) => {
+        const indexA = parseInt(a.split('_')[1]);
+        const indexB = parseInt(b.split('_')[1]);
+        return indexA - indexB;
+      });
+
+      // Tạo file output
+      const outputPath = path.join(outputDir, Date.now() + '_' + fileName);
+      const writeStream = fs.createWriteStream(outputPath);
+
+      // Gộp các chunk
+      for (const chunk of chunks) {
+        const chunkPath = path.join(chunksDir, chunk);
+        const chunkData = await fs.promises.readFile(chunkPath);
+        writeStream.write(chunkData);
+      }
+
+      writeStream.end();
+
+      // Xóa thư mục chunks sau khi gộp xong
+      await fs.promises.rm(chunksDir, { recursive: true, force: true });
+
+      const out = outputPath.replace(/\\/g, '/');
+
+      return out;
+    };
+
+    // Gộp các file chunk
+    const [imagePath, videoPath, backdropPath] = await Promise.all([
+      mergeChunks('image', imageName),
+      mergeChunks('video', videoName),
+      mergeChunks('backdrop', backdropName)
+    ]);
+
+    // Create links for database
+    const link_image = imagePath;
+    const link_video = videoPath;
+    const link_backdrop = backdropPath;
+
+    // Save to database
+    const [imageLink, videoLink, backdropLink] = await Promise.all([
+      LinkImages.create({ link: link_image }),
+      LinkVideos.create({ link: link_video }),
+      LinkBackDrop.create({ link: link_backdrop })
+    ]);
+
+    // if (videoName) {
+    //   await compressMiddleWare(req, res, () => {
+    //     console.log("Compressing video:", videoPath, "to folder:", folderName);
+    //   });
+    // }
+
+    res.json({
+      success: true,
+      message: "Upload completed successfully",
+      data: {
+        linkIMG: imageLink,
+        linkVIDEO: videoLink,
+        linkBACKDROP: backdropLink
+      }
+    });
+  } catch (error) {
+    console.error('Complete upload error:', error);
+    res.status(500).json({
+      success: false,
+      message: "Complete upload failed",
+      error: error.message
+    });
+  }
 });
 
 module.exports = router;

@@ -5,7 +5,6 @@ const { sanitizeFilename } = require('../Utils/process');
 const { exec } = require('child_process');
 const compressVideoBackground = require('../Services/CompressService');
 
-
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
         if (file.fieldname === 'image') {
@@ -14,28 +13,51 @@ const storage = multer.diskStorage({
             cb(null, 'uploads/videos');
         } else if (file.fieldname === 'backdrop') {
             cb(null, 'uploads/backdrops');
+        } else if (file.fieldname === 'chunk') {
+            // Lấy thông tin từ fieldname của file, sử dụng dấu |
+            const fileInfo = file.originalname.split('|');
+            // Lấy 3 phần tử cuối cùng
+            const chunkIndex = fileInfo.pop() || '0';
+            const fileName = fileInfo.pop() || 'unknown';
+            const fileType = fileInfo.join('|') || 'temp'; // Join lại các phần còn lại
+
+            console.log('File info:', { fileType, fileName, chunkIndex });
+
+            // Tạo thư mục gốc cho chunks
+            const chunksRootDir = path.join('uploads', 'chunks');
+            if (!fs.existsSync(chunksRootDir)) {
+                fs.mkdirSync(chunksRootDir, { recursive: true });
+            }
+
+            // Tạo thư mục cho loại file
+            const fileTypeDir = path.join(chunksRootDir, fileType);
+            if (!fs.existsSync(fileTypeDir)) {
+                fs.mkdirSync(fileTypeDir, { recursive: true });
+            }
+
+            // Tạo thư mục cho file cụ thể
+            const chunkDir = path.join(fileTypeDir, fileName);
+            if (!fs.existsSync(chunkDir)) {
+                fs.mkdirSync(chunkDir, { recursive: true });
+            }
+
+            cb(null, chunkDir);
+        } else {
+            cb(new Error('Invalid field name'));
         }
     },
 
     filename: function (req, file, cb) {
-        const sanitizedName = sanitizeFilename(file.originalname);
-        file.originalname = sanitizedName;
-        let uploadPath;
-        if (file.fieldname === 'image') {
-            uploadPath = path.join('uploads/images', file.originalname);
-        } else if (file.fieldname === 'video') {
-            uploadPath = path.join('uploads/videos', file.originalname);
-
-        } else if (file.fieldname === 'backdrop') {
-            uploadPath = path.join('uploads/backdrops', file.originalname);
+        if (file.fieldname === 'chunk') {
+            // Lấy chunkIndex từ originalname, sử dụng dấu |
+            const fileInfo = file.originalname.split('|');
+            const chunkIndex = fileInfo.pop() || '0';
+            cb(null, `chunk_${chunkIndex}`);
+        } else {
+            const sanitizedName = sanitizeFilename(file.originalname);
+            file.originalname = Date.now() + '_' + sanitizedName;
+            cb(null, file.originalname);
         }
-
-        if (fs.existsSync(uploadPath)) {
-            return cb(new Error(`File ${file.originalname} already exists in ${file.fieldname} directory`));
-        }
-
-        cb(null, file.originalname);
-
     }
 });
 
@@ -45,6 +67,7 @@ const compressMiddleWare = async (req, res, next) => {
             const videoFile = Array.isArray(req.files.video) ? req.files.video[0] : req.files.video;
 
             const videoPath = videoFile.path;
+
             const folderName = req.body.name || sanitizeFilename(req.query.name) || 'DefaultName';
 
             console.log('Compressing video:', videoPath, 'to folder:', folderName);
@@ -58,11 +81,11 @@ const compressMiddleWare = async (req, res, next) => {
     }
 };
 
-
-
 const upload = multer({
     storage: storage,
-    limits: { fileSize: 500 * 1024 * 1024 },
+    limits: {
+        fileSize: 5000 * 1024 * 1024 // 5GB
+    },
     fileFilter: (req, file, cb) => {
         if (file.fieldname === 'image') {
             if (file.mimetype.startsWith('image/')) {
@@ -82,6 +105,8 @@ const upload = multer({
             } else {
                 cb(new Error('Only image files are allowed!'));
             }
+        } else if (file.fieldname === 'chunk') {
+            cb(null, true);
         } else {
             cb(new Error('Invalid field name'));
         }
@@ -99,4 +124,9 @@ const handleMulterError = (err, req, res, next) => {
     next();
 };
 
-module.exports = { upload, handleMulterError, compressMiddleWare };
+// Export cả middleware parseFormData
+module.exports = {
+    upload,
+    handleMulterError,
+    compressMiddleWare,
+};

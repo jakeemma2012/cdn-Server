@@ -43,14 +43,30 @@ function createMasterPlaylist(baseDir, qualities) {
     console.log('✅ Created master.m3u8 at:', masterPath);
 }
 
+function getVideoDuration(filePath) {
+    return new Promise((resolve, reject) => {
+        exec(`ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${filePath}"`, (err, stdout) => {
+            if (err) return reject(err);
+            const duration = parseFloat(stdout);
+            resolve(Math.round(duration * 1000)); // milisecond
+        });
+    });
+}
+
 async function compressAndSplitVideo(videoPath, folderName) {
     const baseDir = path.dirname(videoPath);
     const filename = path.basename(videoPath, path.extname(videoPath));
-    const mainOutputDir = path.join(baseDir, folderName);
+    const mainOutputDir = path.join(baseDir, `${Date.now()}_${folderName}`);
+
+    console.log(mainOutputDir);
 
     if (!fs.existsSync(mainOutputDir)) {
         fs.mkdirSync(mainOutputDir, { recursive: true });
     }
+
+    // Lấy thời lượng video trước khi xử lý
+    const totalDuration = await getVideoDuration(videoPath);
+    console.log(`Total video duration: ${totalDuration}ms`);
 
     const qualities = [
         { label: '1080p', resolution: '1920x1080', bitrate: '5000k', bandwidth: 5000000 },
@@ -68,23 +84,46 @@ async function compressAndSplitVideo(videoPath, folderName) {
         const outputHLS = path.join(outFolder, 'index.m3u8');
 
         const command = `
-            ffmpeg -i "${videoPath}" -vf scale=${resolution} -c:a aac -ar 48000 -b:a 128k -c:v h264 -profile:v main \
-            -crf 20 -sc_threshold 0 -g 48 -keyint_min 48 -hls_time 4 -hls_playlist_type vod \
+            ffmpeg -i "${videoPath}" -vf scale=${resolution} -c:a aac -ar 48000 -b:a 96k -c:v libx265 -tag:v hvc1 \
+            -crf 22 -preset ultrafast -sc_threshold 0 -g 48 -keyint_min 48 -hls_time 4 -hls_playlist_type vod \
             -b:v ${bitrate} -maxrate ${bitrate} -bufsize ${parseInt(bitrate) * 2} \
             -hls_segment_filename "${outFolder}/%03d.ts" "${outputHLS}"
         `.replace(/\s+/g, ' ').trim();
 
         try {
             console.log(`Processing ${label} quality...`);
-            await execPromise(command);
+
+            const process = exec(command);
+            process.stderr.on('data', (data) => {
+                const timeMatch = data.match(/time=(\d+):(\d+):(\d+)/);
+                if (timeMatch) {
+                    const hours = parseInt(timeMatch[1]);
+                    const minutes = parseInt(timeMatch[2]);
+                    const seconds = parseInt(timeMatch[3]);
+                    const currentTime = hours * 3600 + minutes * 60 + seconds;
+                    const progress = (currentTime / (totalDuration / 1000)) * 100;
+                    console.log(`${label} Progress: ${progress.toFixed(2)}%`);
+                }
+            });
+
+            await new Promise((resolve, reject) => {
+                process.on('close', (code) => {
+                    if (code === 0) {
+                        resolve();
+                    } else {
+                        reject(new Error(`FFmpeg process exited with code ${code}`));
+                    }
+                });
+            });
+
             console.log(`✅ HLS for ${label} created:`, outputHLS);
-        } catch ({ error, stderr }) {
-            console.error(`❌ Failed creating HLS for ${label}:`, stderr);
+        } catch (error) {
+            console.error(`❌ Failed creating HLS for ${label}:`, error);
+            throw error;
         }
     }
 
     createMasterPlaylist(mainOutputDir, qualities);
-
     deleteFileAfterDelay(videoPath);
 }
 
