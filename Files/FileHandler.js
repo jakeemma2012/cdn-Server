@@ -14,13 +14,17 @@ const storage = multer.diskStorage({
         } else if (file.fieldname === 'backdrop') {
             cb(null, 'uploads/backdrops');
         } else if (file.fieldname === 'chunk') {
+            // Parse thông tin từ tên file gốc
             const fileInfo = file.originalname.split('|');
-            const chunkIndex = fileInfo.pop() || '0';
-            const fileName = fileInfo.pop() || 'unknown';
-            const fileType = fileInfo.join('|') || 'temp'; // Join lại các phần còn lại
+            const fileType = fileInfo[0];
+            const fileName = sanitizeFilename(fileInfo[1]).replace(/\s+/g, '_');
+            const chunkIndex = fileInfo[2];
 
-            console.log('File info:', { fileType, fileName, chunkIndex });
+            if (!fileType || !fileName) {
+                return cb(new Error('Invalid file information'));
+            }
 
+            // Tạo cấu trúc thư mục cho chunks
             const chunksRootDir = path.join('uploads', 'chunks');
             if (!fs.existsSync(chunksRootDir)) {
                 fs.mkdirSync(chunksRootDir, { recursive: true });
@@ -52,8 +56,9 @@ const storage = multer.diskStorage({
 
     filename: function (req, file, cb) {
         if (file.fieldname === 'chunk') {
+            // Parse chunkIndex từ tên file gốc
             const fileInfo = file.originalname.split('|');
-            const chunkIndex = fileInfo.pop() || '0';
+            const chunkIndex = fileInfo[2];
             cb(null, `chunk_${chunkIndex}`);
         } else if (file.fieldname === 'cast') {
             const castName = sanitizeFilename(file.originalname);
@@ -111,6 +116,10 @@ const upload = multer({
                 cb(new Error('Only image files are allowed!'));
             }
         } else if (file.fieldname === 'chunk') {
+            const fileInfo = file.originalname.split('|');
+            if (fileInfo.length !== 3) {
+                return cb(new Error('Invalid chunk file format'));
+            }
             cb(null, true);
         } else if (file.fieldname === 'cast') {
             cb(null, true);

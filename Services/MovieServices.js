@@ -309,15 +309,16 @@ router.post("/delete_file", async (req, res) => {
 
 //// get video or image
 router.get("/get_assets", (req, res) => {
-  const { linkVideo, linkImage, linkCast, linkBackdrop, nameTag, nameMovie } = req.query;
+  const { linkVideo, linkImage, linkCast, linkBackdrop, linkTrailer, nameTag, nameMovie } = req.query;
 
-  console.log(linkVideo);
+  console.log("TRAILER : " + linkTrailer);
 
-  if (linkVideo || linkImage || linkCast || linkBackdrop) {
+  if (linkVideo || linkImage || linkCast || linkBackdrop || linkTrailer) {
     switch (nameTag) {
       case "poster":
         if (linkImage) {
-          const imagePath = path.join(__dirname, '..', 'uploads', 'images', linkImage);
+          const imagePath = path.join(__dirname, '..', linkImage);
+          console.log("IMG : " + imagePath);
           if (fs.existsSync(imagePath)) {
             res.sendFile(imagePath);
           } else {
@@ -330,7 +331,7 @@ router.get("/get_assets", (req, res) => {
         break;
       case "backdrop":
         if (linkBackdrop) {
-          const backdropPath = path.join(__dirname, '..', 'uploads', 'backdrops', linkBackdrop);
+          const backdropPath = path.join(__dirname, '..', linkBackdrop);
           if (fs.existsSync(backdropPath)) {
             res.sendFile(backdropPath);
           } else {
@@ -344,7 +345,7 @@ router.get("/get_assets", (req, res) => {
       case "video":
         if (linkVideo) {
           console.log(linkVideo);
-          const videoPath = path.join(__dirname, '..', 'uploads', 'videos', linkVideo);
+          const videoPath = path.join(__dirname, '..', linkVideo);
           if (fs.existsSync(videoPath)) {
             res.sendFile(videoPath);
           } else {
@@ -370,7 +371,19 @@ router.get("/get_assets", (req, res) => {
           }
         }
         break;
-
+      case "trailer":
+        if (linkTrailer) {
+          const trailerPath = path.join(__dirname, '..', linkTrailer);
+          if (fs.existsSync(trailerPath)) {
+            res.sendFile(trailerPath);
+          } else {
+            res.status(404).json({
+              success: false,
+              message: "Trailer not found"
+            });
+          }
+        }
+        break;
       default:
         res.status(400).json({
           success: false,
@@ -430,7 +443,6 @@ router.post('/uploadChunk',
     res.setTimeout(UPLOAD_TIMEOUT);
 
     try {
-      // Log để debug
       console.log('Upload chunk request body:', req.body);
       console.log('Upload chunk file:', req.file);
 
@@ -456,9 +468,8 @@ router.post('/uploadChunk',
         });
       }
 
-      const tempDir = path.join('uploads', 'chunks', fileType, fileName);
+      const tempDir = path.join('uploads', 'chunks', fileType, sanitizeFilename(fileName));
 
-      // Update progress
       const uploadedChunks = await fs.promises.readdir(tempDir);
       const progress = (uploadedChunks.length / totalChunks) * 100;
 
@@ -486,7 +497,7 @@ router.post('/uploadChunk',
 
 router.post('/completeUpload', async (req, res) => {
   try {
-    const { movieDTO, imageName, videoName, backdropName } = req.body;
+    const { movieDTO, imageName, videoName, backdropName, trailerName } = req.body;
 
     if (!movieDTO || !imageName || !videoName || !backdropName) {
       return res.status(400).json({
@@ -501,7 +512,18 @@ router.post('/completeUpload', async (req, res) => {
     // Gộp các file chunk
     const mergeChunks = async (fileType, fileName) => {
       const chunksDir = path.join('uploads', 'chunks', fileType, fileName);
-      const outputDir = path.join('uploads', fileType === 'video' ? 'videos' : fileType === 'image' ? 'images' : 'backdrops');
+      let outputDir;
+      if (fileType === 'video') {
+        outputDir = path.join('uploads', 'videos');
+      } else if (fileType === 'image') {
+        outputDir = path.join('uploads', 'images');
+      } else if (fileType === 'backdrop') {
+        outputDir = path.join('uploads', 'backdrops');
+      } else if (fileType === 'trailer') {
+        outputDir = path.join('uploads', 'trailers');
+      } else {
+        throw new Error(`Invalid file type: ${fileType}`);
+      }
 
       if (!fs.existsSync(outputDir)) {
         fs.mkdirSync(outputDir, { recursive: true });
@@ -536,15 +558,18 @@ router.post('/completeUpload', async (req, res) => {
       return out;
     };
 
-    const [imagePath, videoPath, backdropPath] = await Promise.all([
+    const [imagePath, videoPath, backdropPath, trailerPath] = await Promise.all([
       mergeChunks('image', imageName),
       mergeChunks('video', videoName),
-      mergeChunks('backdrop', backdropName)
+      mergeChunks('backdrop', backdropName),
+      mergeChunks('trailer', sanitizeFilename(trailerName))
     ]);
 
+
     const link_image = imagePath;
-    const link_video = videoPath;
+    const link_video = videoPath.replace(/\.[^/.]+$/, '');
     const link_backdrop = backdropPath;
+    const link_trailer = trailerPath;
 
     const [imageLink, videoLink, backdropLink] = await Promise.all([
       LinkImages.create({ link: link_image }),
@@ -559,6 +584,11 @@ router.post('/completeUpload', async (req, res) => {
       compressVideoBackground(videoPath, dateNow + '_' + folderName);
     }
 
+    if (trailerName) {
+      console.log('Compressing trailer:', trailerPath, 'to folder:', dateNow + '_' + folderName);
+      compressVideoBackground(trailerPath, dateNow + '_' + folderName);
+    }
+
     const movieData = typeof movieDTO === 'string' ? JSON.parse(movieDTO) : movieDTO;
 
     // Tạo JSON hoàn chỉnh
@@ -566,7 +596,8 @@ router.post('/completeUpload', async (req, res) => {
       ...movieData,
       imageUrl: `${link_image}`,
       videoUrl: `${link_video}`,
-      backdropUrl: `${link_backdrop}`
+      backdropUrl: `${link_backdrop}`,
+      trailerUrl: `${link_trailer}`
     };
 
     res.json({
@@ -601,7 +632,13 @@ router.post('/uploadCast', upload.array('cast'), async (req, res) => {
     const castData = [];
 
     for (let i = 0; i < uploadedFiles.length; i++) {
-      const castName = uploadedFiles[i].filename;
+
+      const castName = uploadedFiles[i].filename
+        .split('_')
+        .slice(1)
+        .join('_')
+        .replace(/\.[^/.]+$/, '');
+
       castData.push(castName);
     }
 
