@@ -56,9 +56,9 @@ function getVideoDuration(filePath) {
 async function compressAndSplitVideo(videoPath, folderName) {
     const baseDir = path.dirname(videoPath);
     const filename = path.basename(videoPath, path.extname(videoPath));
-    const mainOutputDir = path.join(baseDir, `${Date.now()}_${folderName}`);
+    const mainOutputDir = path.join(baseDir, `${folderName}`);
 
-    console.log(mainOutputDir);
+    console.log("Compressing video:", videoPath, "to folder:", mainOutputDir);
 
     if (!fs.existsSync(mainOutputDir)) {
         fs.mkdirSync(mainOutputDir, { recursive: true });
@@ -85,7 +85,7 @@ async function compressAndSplitVideo(videoPath, folderName) {
 
         const command = `
             ffmpeg -i "${videoPath}" -vf scale=${resolution} -c:a aac -ar 48000 -b:a 96k -c:v libx265 -tag:v hvc1 \
-            -crf 22 -preset ultrafast -sc_threshold 0 -g 48 -keyint_min 48 -hls_time 4 -hls_playlist_type vod \
+            -crf 22 -preset fast -sc_threshold 0 -g 48 -keyint_min 48 -hls_time 4 -hls_playlist_type vod \
             -b:v ${bitrate} -maxrate ${bitrate} -bufsize ${parseInt(bitrate) * 2} \
             -hls_segment_filename "${outFolder}/%03d.ts" "${outputHLS}"
         `.replace(/\s+/g, ' ').trim();

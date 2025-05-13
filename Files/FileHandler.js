@@ -14,34 +14,37 @@ const storage = multer.diskStorage({
         } else if (file.fieldname === 'backdrop') {
             cb(null, 'uploads/backdrops');
         } else if (file.fieldname === 'chunk') {
-            // Lấy thông tin từ fieldname của file, sử dụng dấu |
             const fileInfo = file.originalname.split('|');
-            // Lấy 3 phần tử cuối cùng
             const chunkIndex = fileInfo.pop() || '0';
             const fileName = fileInfo.pop() || 'unknown';
             const fileType = fileInfo.join('|') || 'temp'; // Join lại các phần còn lại
 
             console.log('File info:', { fileType, fileName, chunkIndex });
 
-            // Tạo thư mục gốc cho chunks
             const chunksRootDir = path.join('uploads', 'chunks');
             if (!fs.existsSync(chunksRootDir)) {
                 fs.mkdirSync(chunksRootDir, { recursive: true });
             }
 
-            // Tạo thư mục cho loại file
             const fileTypeDir = path.join(chunksRootDir, fileType);
             if (!fs.existsSync(fileTypeDir)) {
                 fs.mkdirSync(fileTypeDir, { recursive: true });
             }
 
-            // Tạo thư mục cho file cụ thể
             const chunkDir = path.join(fileTypeDir, fileName);
             if (!fs.existsSync(chunkDir)) {
                 fs.mkdirSync(chunkDir, { recursive: true });
             }
 
             cb(null, chunkDir);
+        } else if (file.fieldname === 'cast') {
+            const movieName = req.body.movieName || 'unknown';
+            const castDir = path.join('uploads', 'casts', movieName);
+
+            if (!fs.existsSync(castDir)) {
+                fs.mkdirSync(castDir, { recursive: true });
+            }
+            cb(null, castDir);
         } else {
             cb(new Error('Invalid field name'));
         }
@@ -49,10 +52,12 @@ const storage = multer.diskStorage({
 
     filename: function (req, file, cb) {
         if (file.fieldname === 'chunk') {
-            // Lấy chunkIndex từ originalname, sử dụng dấu |
             const fileInfo = file.originalname.split('|');
             const chunkIndex = fileInfo.pop() || '0';
             cb(null, `chunk_${chunkIndex}`);
+        } else if (file.fieldname === 'cast') {
+            const castName = sanitizeFilename(file.originalname);
+            cb(null, `${Date.now()}_${castName}`);
         } else {
             const sanitizedName = sanitizeFilename(file.originalname);
             file.originalname = Date.now() + '_' + sanitizedName;
@@ -107,6 +112,8 @@ const upload = multer({
             }
         } else if (file.fieldname === 'chunk') {
             cb(null, true);
+        } else if (file.fieldname === 'cast') {
+            cb(null, true);
         } else {
             cb(new Error('Invalid field name'));
         }
@@ -124,7 +131,6 @@ const handleMulterError = (err, req, res, next) => {
     next();
 };
 
-// Export cả middleware parseFormData
 module.exports = {
     upload,
     handleMulterError,

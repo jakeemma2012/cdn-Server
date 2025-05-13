@@ -14,10 +14,10 @@ const LinkImages = require("../Models/LinkImages");
 const { sanitizeFilename } = require("../Utils/process");
 const LinkBackDrop = require("../Models/LinkBackDrop");
 const { exec } = require('child_process');
-const { dir } = require("console");
+const { dir, log } = require("console");
 const axios = require('axios');
 const FormData = require('form-data');
-
+const compressVideoBackground = require('../Services/CompressService');
 // Constants
 const CHUNK_SIZE = 1024 * 1024; // 1MB chunks
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
@@ -497,17 +497,16 @@ router.post('/completeUpload', async (req, res) => {
 
     const folderName = req.body.name || sanitizeFilename(req.query.name) || 'DefaultName';
 
+    const dateNow = Date.now();
     // Gộp các file chunk
     const mergeChunks = async (fileType, fileName) => {
       const chunksDir = path.join('uploads', 'chunks', fileType, fileName);
       const outputDir = path.join('uploads', fileType === 'video' ? 'videos' : fileType === 'image' ? 'images' : 'backdrops');
 
-      // Tạo thư mục output nếu chưa tồn tại
       if (!fs.existsSync(outputDir)) {
         fs.mkdirSync(outputDir, { recursive: true });
       }
 
-      // Đọc tất cả các chunk và sắp xếp theo thứ tự
       const chunks = await fs.promises.readdir(chunksDir);
       chunks.sort((a, b) => {
         const indexA = parseInt(a.split('_')[1]);
@@ -515,11 +514,13 @@ router.post('/completeUpload', async (req, res) => {
         return indexA - indexB;
       });
 
-      // Tạo file output
-      const outputPath = path.join(outputDir, Date.now() + '_' + fileName);
+      const outputFileName = fileType === 'video'
+        ? `${dateNow}_${folderName}${path.extname(fileName)}`
+        : `${dateNow}_${fileName}`;
+
+      const outputPath = path.join(outputDir, outputFileName);
       const writeStream = fs.createWriteStream(outputPath);
 
-      // Gộp các chunk
       for (const chunk of chunks) {
         const chunkPath = path.join(chunksDir, chunk);
         const chunkData = await fs.promises.readFile(chunkPath);
@@ -528,7 +529,6 @@ router.post('/completeUpload', async (req, res) => {
 
       writeStream.end();
 
-      // Xóa thư mục chunks sau khi gộp xong
       await fs.promises.rm(chunksDir, { recursive: true, force: true });
 
       const out = outputPath.replace(/\\/g, '/');
@@ -536,45 +536,84 @@ router.post('/completeUpload', async (req, res) => {
       return out;
     };
 
-    // Gộp các file chunk
     const [imagePath, videoPath, backdropPath] = await Promise.all([
       mergeChunks('image', imageName),
       mergeChunks('video', videoName),
       mergeChunks('backdrop', backdropName)
     ]);
 
-    // Create links for database
     const link_image = imagePath;
     const link_video = videoPath;
     const link_backdrop = backdropPath;
 
-    // Save to database
     const [imageLink, videoLink, backdropLink] = await Promise.all([
       LinkImages.create({ link: link_image }),
       LinkVideos.create({ link: link_video }),
       LinkBackDrop.create({ link: link_backdrop })
     ]);
 
-    // if (videoName) {
-    //   await compressMiddleWare(req, res, () => {
-    //     console.log("Compressing video:", videoPath, "to folder:", folderName);
-    //   });
-    // }
+    if (videoName) {
+
+      console.log('Compressing video:', videoPath, 'to folder:', dateNow + '_' + folderName);
+
+      compressVideoBackground(videoPath, dateNow + '_' + folderName);
+    }
+
+    const movieData = typeof movieDTO === 'string' ? JSON.parse(movieDTO) : movieDTO;
+
+    // Tạo JSON hoàn chỉnh
+    const completeMovieData = {
+      ...movieData,
+      imageUrl: `${link_image}`,
+      videoUrl: `${link_video}`,
+      backdropUrl: `${link_backdrop}`
+    };
 
     res.json({
       success: true,
       message: "Upload completed successfully",
-      data: {
-        linkIMG: imageLink,
-        linkVIDEO: videoLink,
-        linkBACKDROP: backdropLink
-      }
+      data: completeMovieData
     });
+
   } catch (error) {
     console.error('Complete upload error:', error);
     res.status(500).json({
       success: false,
       message: "Complete upload failed",
+      error: error.message
+    });
+  }
+});
+
+router.post('/uploadCast', upload.array('cast'), async (req, res) => {
+  try {
+    const { movieName } = req.body;
+
+    if (!movieName) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing required parameters"
+      });
+    }
+
+    const uploadedFiles = req.files;
+
+    const castData = [];
+
+    for (let i = 0; i < uploadedFiles.length; i++) {
+      const castName = uploadedFiles[i].filename;
+      castData.push(castName);
+    }
+
+    console.log(castData);
+
+    res.json(castData);
+
+  } catch (error) {
+    console.error('Cast upload error:', error);
+    res.status(500).json({
+      success: false,
+      message: "Cast upload failed",
       error: error.message
     });
   }
