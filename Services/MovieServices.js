@@ -307,6 +307,38 @@ router.post("/delete_file", async (req, res) => {
 });
 
 
+router.get("/get_cast_list", (req, res) => {
+  const { nameMovie } = req.query;
+
+  console.log("NAME MOVIE : " + nameMovie);
+
+  const castPath = path.join(__dirname, '..', 'uploads', 'casts', sanitizeFilename(nameMovie));
+  console.log("CAST PATH : " + castPath);
+  if (fs.existsSync(castPath)) {
+    const castFiles = fs.readdirSync(castPath);
+    const castData = [];
+    const castName = [];
+
+    for (const file of castFiles) {
+      castData.push(file);
+      castName.push(file.split('_').slice(1).join('_').replace(/\.[^/.]+$/, '').replace(/_/g, ' '));
+    }
+
+    res.json({
+      success: true,
+      message: "Cast folder found",
+      data: {
+        castData: castData,
+        castName: castName
+      }
+    });
+
+  } else {
+    res.status(404).json({ success: false, message: "Cast folder not found" });
+  }
+}
+);
+
 //// get video or image
 router.get("/get_assets", (req, res) => {
   const { linkVideo, linkImage, linkCast, linkBackdrop, linkTrailer, nameTag, nameMovie } = req.query;
@@ -360,7 +392,7 @@ router.get("/get_assets", (req, res) => {
         if (linkCast) {
           console.log(nameMovie);
           console.log(linkCast);
-          const castPath = path.join(__dirname, '..', 'uploads', 'casts', nameMovie, linkCast);
+          const castPath = path.join(__dirname, '..', 'uploads', 'casts', sanitizeFilename(nameMovie), linkCast);
           if (fs.existsSync(castPath)) {
             res.sendFile(castPath);
           } else {
