@@ -97,6 +97,7 @@ const uploadChunk = async (chunk, chunkIndex, totalChunks, fileName, fileType) =
   }
 };
 
+
 // Routes
 router.post('/uploadMovie', async (req, res) => {
   try {
@@ -144,6 +145,7 @@ router.post('/uploadMovie', async (req, res) => {
     });
   }
 });
+
 
 
 //// upload image
@@ -339,6 +341,8 @@ router.get("/get_cast_list", (req, res) => {
 }
 );
 
+
+
 //// get video or image
 router.get("/get_assets", (req, res) => {
   const { linkVideo, linkImage, linkCast, linkBackdrop, linkTrailer, nameTag, nameMovie } = req.query;
@@ -365,6 +369,7 @@ router.get("/get_assets", (req, res) => {
         if (linkBackdrop) {
           const backdropPath = path.join(__dirname, '..', linkBackdrop);
           if (fs.existsSync(backdropPath)) {
+            console.log("BACKDROP PATH : " + backdropPath);
             res.sendFile(backdropPath);
           } else {
             res.status(404).json({
@@ -405,6 +410,7 @@ router.get("/get_assets", (req, res) => {
         break;
       case "trailer":
         if (linkTrailer) {
+          c
           const trailerPath = path.join(__dirname, '..', linkTrailer);
           if (fs.existsSync(trailerPath)) {
             res.sendFile(trailerPath);
