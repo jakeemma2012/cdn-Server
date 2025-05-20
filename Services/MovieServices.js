@@ -410,7 +410,6 @@ router.get("/get_assets", (req, res) => {
         break;
       case "trailer":
         if (linkTrailer) {
-          c
           const trailerPath = path.join(__dirname, '..', linkTrailer);
           if (fs.existsSync(trailerPath)) {
             res.sendFile(trailerPath);
